@@ -1,0 +1,324 @@
+---
+title: "Pseudoobscura Crossovers"
+author: "Charlie Soeder"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: 
+    number_sections: yes
+    toc: yes
+    toc_depth: 5
+  html_document: default
+bibliography: references.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#knitr::opts_chunk$set(root.dir = '/Users/csoeder/Research/PSIseq/PopPsiSeq/')
+#knitr::opts_knit$set(root.dir='/Users/csoeder/Research/PSIseq/PopPsiSeq/')
+#knitr::opts_knit$set(root.dir='/proj/cdjones_lab/csoeder/pseudob_amplicon/')
+knitr::opts_knit$set(root.dir=peaDubDee)
+library("tidyverse")
+#require(devtools)
+#install_version("ggplot2", version = "3.1.0", repos = "http://cran.us.r-project.org")
+library("knitr")
+library("yaml")
+library("gt")
+#library("ggbio")
+#library("readr")
+#library("reshape2")
+#library("ggdendro")
+#library("dendextend")
+#library("grid")
+#library("gridExtra")
+#library("gtable")
+#library("rtracklayer")
+
+#library("sitools")
+
+# gotta set the working directory.....
+```
+
+```{r include=FALSE}
+
+human_readable_croncher <- function(num_in) {
+	dig <- 3
+	num_out <- formatC(num_in, digits=dig, format='g') %>% as.numeric() %>% sitools::f2si()
+	return(num_out)
+}
+
+bam_summary_loader <- function(filename, aligner="bwa", reference='dm6'){
+	
+	tmp.df <- read_delim(filename, "\t", escape_double = FALSE, col_names = FALSE, trim_ws = TRUE)
+	names(tmp.df) <- c("sample","measure","value")
+	
+	tmp.df$sample <- as.factor(tmp.df$sample)
+	tmp.df$measure <- as.factor(tmp.df$measure)
+	tmp.df$aligner <- as.factor(aligner)
+	tmp.df$reference <- as.factor(reference)
+	
+	return(tmp.df)
+	
+}
+
+```
+
+
+```{r echo=FALSE, include=FALSE, message=FALSE}
+
+
+#tbl_cnt <- tbl_cnt + 1
+#thing.gt <- asdfasdfasdf
+#thing.gt
+#write(thing.gt %>%  as_raw_html(), paste("results/tables/tbl",tbl_cnt,"_thing.html", sep=""))
+
+
+```
+
+```{r echo=FALSE, include=FALSE, message=FALSE}
+
+
+# fig_cnt <- fig_cnt + 1
+# thing.gg <- asdfasdfasd
+# thing.gg
+# png(height =  500, width = 800, filename = paste("results/figures/fig",fig_cnt,"_ong.png", sep=""))
+# thing.gg
+# dev.off()
+# 
+
+```
+
+
+
+# Introduction
+
+Looking at crossovers 
+
+# Materials, Methods, Data, Software
+```{r include=FALSE}
+
+trammel <- read_yaml("config.yaml")
+
+```
+
+
+## Reference Genomes
+
+
+```{r include=FALSE, echo = FALSE, message=FALSE}
+refGenomes_summary_df <- read_delim("summaries/reference_genomes.summary", 
+    "\t", escape_double = FALSE, col_names = FALSE, 
+    trim_ws = TRUE)
+
+names(refGenomes_summary_df) <- c("refGenome","measure","value")
+
+```
+
+The dps3_04 reference genome was used for read alignment after filtering to remove wonky contigs:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+tbl_cnt <- tbl_cnt + 1
+
+refGenomes_summary.gt <- refGenomes_summary_df  %>% mutate(measure=gsub("_"," ",measure)) %>% spread(refGenome, value)   %>% gt() %>% tab_header(title=paste("Table ",tbl_cnt, ". Size and Consolidation of Reference Genomes", sep = ""), subtitle="Drosophila Pseudoobscura") %>%   fmt_number(columns = vars(dps3),suffixing = TRUE, decimals=0) %>% cols_label(measure = " ", dps3 = " ")
+	
+refGenomes_summary.gt
+
+write(refGenomes_summary.gt %>%  as_raw_html(), paste("results/tables/tbl",tbl_cnt,"_refGenomeSummary.html", sep=""))
+
+```
+
+
+
+
+## Sequenced Reads
+
+```{r include=FALSE}
+data_sets.df <- plyr::ldply(trammel$data_sets, data.frame)
+
+
+
+
+
+# data_sets.df$name <- as.factor(data_sets.df$name)
+# data_sets.df$paired<- as.factor(data_sets.df$paired)
+# data_sets.df$experimental<- as.factor(data_sets.df$experimental)
+# data_sets.df$species<- as.factor(data_sets.df$species)
+# data_sets.df$source<- as.factor(data_sets.df$source)
+
+
+
+
+data_sets.df.sparse <- data_sets.df %>% group_by(name) %>% filter(any(subgroups %in% "all")) %>% ungroup() %>% filter(subgroups != "all") %>% select(-c(path,readsfile1,readsfile2,paired, SRA, line, plate)) %>% distinct() 
+
+#data_sets.df.sparse.collapse <- data_sets.df.sparse %>% group_by(name) %>%  mutate(genotype = paste0(as.character(genotype), collapse = "," ))  %>% distinct()
+#data_sets.df.sparse.collapse$genotype <- as.factor(data_sets.df.sparse.collapse$genotype)
+
+experimental_counts.tbl  <- data_sets.df.sparse %>% group_by(source, library, subgroups) %>% summarise(sample_count=n())
+
+
+```
+
+```{r echo=FALSE, include=FALSE, message=FALSE}
+
+
+tbl_cnt <- tbl_cnt + 1
+sequenced_counts.gt <- experimental_counts.tbl %>% ungroup()%>% gt() %>% tab_header(title=paste("Table ",tbl_cnt, ". Samples Sequenced", sep = ""), subtitle="counts by population/treatment") %>%   fmt_number(columns = vars(sample_count),suffixing = TRUE, decimals=0) %>% cols_label(source = "population", subgroups = "treatment", sample_count="number sequenced")
+	
+sequenced_counts.gt
+write(sequenced_counts.gt %>%  as_raw_html(), paste("results/tables/tbl",tbl_cnt,"_sequencedSampleCount.html", sep=""))
+
+
+```
+
+
+
+
+### Pre-processing
+
+```{r echo=FALSE, include=FALSE}
+fastp_summary <- read_delim("summaries/sequenced_reads.dat", "\t", escape_double = FALSE, col_names = FALSE, trim_ws = TRUE)
+names(fastp_summary ) <- c("name","type","measure","value")
+fastp_summary$name <- as.factor(fastp_summary$name)
+fastp_summary$type <- as.factor(fastp_summary$type)
+fastp_summary$measure <- as.factor(fastp_summary$measure)
+```
+
+```{r echo=FALSE, include=FALSE}
+filtration_stats <- inner_join(fastp_summary %>%  filter(type=="prefiltered" | type == 'postfiltered'), data_sets.df.sparse, by=c("name"="name"))
+filtration_stats$type <- factor(filtration_stats$type, levels=c("prefiltered", "postfiltered"))
+```
+
+These reads were preprocessed with FASTP [@Chen2018] for quality control and analytics. 
+
+Starting FASTQ files contained a total of  $`r sum( filtration_stats %>% filter(type =='prefiltered') %>%  filter(measure=='total_reads') %>% select(value) ) %>% human_readable_croncher() `$ reads; after QC, this dropped to $`r sum( filtration_stats %>% filter(type =='postfiltered') %>%  filter(measure=='total_reads') %>% select(value) ) %>% human_readable_croncher() `$. 
+
+```{r echo=FALSE}
+pre_post_counts <- filtration_stats %>% filter(measure=='total_reads') %>%  group_by(type)  %>%  summarise(minimum = min(value), average=mean(value) , maximum = max(value)) 
+retention_percent <- filtration_stats %>% filter(measure=='total_reads') %>% select(c(name,type,value)) %>%  spread(type,value) %>% mutate(retention=100*postfiltered/prefiltered) %>%  summarise(type='percent retention', minimum = min(retention), average=mean(retention) , maximum = max(retention))
+```
+
+```{r echo=FALSE}
+
+read_retention_rate.gt <- rbind(pre_post_counts, retention_percent)  %>% gt() %>% tab_header(title=paste("Table ",tbl_cnt, ". Read Retention Rate during Preprocessing", sep = ""), subtitle= md("&nbsp;")) %>%  fmt_number(columns = vars(minimum, average,maximum),rows = type!="percent_retention",suffixing = TRUE, decimals=0) %>% fmt_percent(columns = vars(minimum, average,maximum),rows = type=="percent_retention", decimals=1) %>% cols_label(type=" ") 
+
+read_retention_rate.gt
+
+write(read_retention_rate.gt %>%  as_raw_html(), paste("results/tables/tbl",tbl_cnt,"_readRetentionRatePreprocessing.html", sep=""))
+
+```
+
+Filtration also increased the read quality, as seen in the increase in the fraction of reads with an average quality score > 30:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+fig_cnt <- fig_cnt + 1
+
+readQual.gg <- ggplot(filtration_stats %>% filter(measure == "q30_rate")) + geom_line(aes(group=name, x=type,y=100*value)) +  geom_point(aes(x=type, y = 100*value, color=source, shape=subgroups)) + labs(title = paste("Figure ",fig_cnt, ". Percent of Reads with a mean QUAL > 30", sep = ""), y="Percent QUAL > 30", x="") + theme_bw() #+ geom_text(data= . %>% filter(type=="postfiltered") %>% filter(value<0.97), aes(type,100*value,label=name))
+
+readQual.gg
+png(height =  500, width = 800, filename = paste("results/figures/fig",fig_cnt,"_readQualityThruProcessing.png", sep=""))
+readQual.gg
+dev.off()
+
+
+```
+
+Duplicate reads were also detected; these will be filtered during alignment:
+
+Duplicate reads were also detected
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+dupe_stats <- inner_join(fastp_summary %>% filter(type=='duplication' & measure =='rate') %>%  mutate(percent=value) %>% select(c(name,percent)), data_sets.df.sparse, by=c("name"="name"))
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+tbl_cnt <- tbl_cnt + 1
+
+duplicationStats.gt <- dupe_stats %>%  summarise(minimum = min(percent), average=mean(percent), median=median(percent) , maximum = max(percent)) %>% gt() %>% tab_header(title=paste("Table ",tbl_cnt, ". Percentage Duplication", sep = ""), subtitle="FASTP estimate") %>% fmt_percent(columns=vars(minimum,median,average,maximum), decimals=1, ) #kable(caption="Percentage Duplication",digits=1)
+
+duplicationStats.gt
+
+write(duplicationStats.gt %>%  as_raw_html(), paste("results/tables/tbl",tbl_cnt,"_duplicationStats.html", sep=""))
+
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+fig_cnt <- fig_cnt + 1
+
+dupeStats.gg <- ggplot(dupe_stats) + geom_histogram(aes(x=100*percent, fill=subgroups), bins=15) + labs(title=paste("Figure ",fig_cnt, ". Duplication Histogram (FASTP estimate)", sep = ""), x="Read Duplication Rate (percent)", y="Number Samples") + theme_bw()
+
+dupeStats.gg
+png(height =  500, width = 800, filename = paste("results/figures/fig",fig_cnt,"_readDuplicationRate.png", sep=""))
+dupeStats.gg
+dev.off()
+
+
+```
+
+
+
+
+## Mapped Reads
+
+Reads were mapped to the reference genome using bwa MEM [    ]
+
+```{r echo=FALSE, include=FALSE}
+vs_dps3.bwaMEM <- bam_summary_loader(filename = "summaries/alignments.vs_dps3.bwaMEM.summary",aligner="bwaMEM", reference="dps3")
+#vs_droSec1.bwa <- bam_summary_loader(filename = "meta/alignments.vs_droSec1.bwa.summary",aligner="bwa", reference="droSec1")
+#vs_droSim1.bwaUniq <- bam_summary_loader(filename = "meta/alignments.vs_droSim1.bwaUniq.summary",aligner="bwaUniq", reference="droSim1")
+#vs_droSec1.bwaUniq <- bam_summary_loader(filename = "meta/alignments.vs_droSec1.bwaUniq.summary",aligner="bwaUniq", reference="droSec1")
+
+all_alignments <- rbind(vs_dps3.bwaMEM)
+```
+
+
+
+
+### BWA MEM
+
+```{r echo=FALSE, include=FALSE}
+
+vs_dps3.bwaMEM.meta <- inner_join(vs_dps3.bwaMEM, data_sets.df.sparse, by = c("sample"="name")) 
+
+
+vs_dps3.bwaMEM.meta <- rbind(vs_dps3.bwaMEM.meta,filtration_stats %>% filter(type == "postfiltered" & measure== "total_reads" ) %>% mutate(ref_genome="dps3", aligner = "unmapped", sample=name, reference=ref_genome) %>% select(c("sample","measure","value","aligner","reference","source","library","subgroups"  )))
+
+#all_alignments.meta <- inner_join(all_alignments, data_sets.df.sparse.collapse, by = c("sample"="name"))
+
+vs_dps3.bwaMEM.meta.stats <- vs_dps3.bwaMEM.meta %>% filter(measure %in% c("total_reads","total_mapped_count","properly_paired_count", "duplicate_reads")) %>% select(-c("reference", "source","library","subgroups", "aligner")) %>% spread(key="measure", value="value") %>% mutate(total_mapped_count = 2*total_mapped_count) %>% mutate(percent_mapped=total_mapped_count/total_reads, percent_proper = properly_paired_count/total_reads)#, percent_duplicate = duplicate_reads/total_mapped_count)
+
+```
+
+Of the  $`r sum( vs_dps3.bwaMEM.meta.stats %>% select(total_reads) ) %>% human_readable_croncher() `$ reads, MapSplice was able to align  $`r (sum( vs_dps3.bwaMEM.meta.stats %>% select(total_mapped_count) )) %>% human_readable_croncher() `$ of them, for an overall mapping rate of  $`r 100*sum( vs_dps3.bwaMEM.meta.stats %>% select(total_mapped_count) )/ sum( vs_dps3.bwaMEM.meta.stats %>% select(total_reads) ) `$ %.
+
+Individual mapping rates were generally more than 
+
+
+
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+tbl_cnt <- tbl_cnt + 1
+
+percentMapping.raw.gt <- vs_dps3.bwaMEM.meta.stats  %>% select(percent_mapped) %>% mutate(mack = max(.$percent_mapped),min = min(.$percent_mapped), avg = mean(.$percent_mapped), med = median(.$percent_mapped)) %>% select(-c(percent_mapped)) %>% unique() %>% gt() %>% tab_header(title=paste("Table ",tbl_cnt, ". Percent of Reads Mapping", sep = ""), subtitle="bwa MEM output") %>% fmt_percent(columns=vars(mack,min,avg,med), decimals=1, ) %>% cols_label(min="minimum", mack="maximum", avg="mean", med="median") %>% cols_label(min="minimum", mack="maximum", avg="mean", med="median") %>% cols_move(columns = c("min"), after="med")
+
+percentMapping.raw.gt
+
+write(percentMapping.raw.gt %>%  as_raw_html(), paste("results/tables/tbl",tbl_cnt,"_percentMappingRaw.html", sep=""))
+
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+tbl_cnt <- tbl_cnt + 1
+
+percentMappingIndv.raw.gt <- vs_dm6.mapspliceRaw.meta.stats %>% select(-c("duplicate_reads", "properly_paired_count", "percent_duplicate", "percent_proper", "sample"))  %>% group_by(housing, genotype) %>% gt()  %>% tab_header(title=paste("Table ",tbl_cnt, ". Individual Mapping Rates", sep = ""), subtitle="raw mapsplice output") %>% fmt_percent(columns=vars(percent_mapped), decimals=1, ) %>% fmt_number(columns = c("total_mapped_count", "total_reads"), decimals = 1, suffixing = T) %>% cols_label(total_mapped_count="reads mapped", total_reads="total reads", percent_mapped = "percent mapped")  %>% cols_move(columns = c("total_mapped_count"), after="total_reads")
+
+percentMappingIndv.raw.gt
+
+write(percentMappingIndv.raw.gt %>%  as_raw_html(), paste("results/tables/tbl",tbl_cnt,"_percentMappingRawIndv.html", sep=""))
+
+```
+
